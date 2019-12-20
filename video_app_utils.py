@@ -33,6 +33,7 @@ import threading
 import cv2
 import time
 import numpy as np
+import argparse
 
 
 class PipelineWorker():
@@ -140,7 +141,7 @@ class ContinuousVideoCapture(PipelineWorker):
     ! videoconvert \
     ! appsink'
     
-    def __init__(self, cameraId, width, height, fps=30, qsize=30, fourcc=None):
+    def __init__(self, cameraId, width, height, fps=None, qsize=30, fourcc=None):
         '''
             Args:
                 cameraId(int): Camera device ID, if negative number specified,
@@ -174,7 +175,8 @@ class ContinuousVideoCapture(PipelineWorker):
             if fourcc is not None:
                 self.capture.set(cv2.CAP_PROP_FOURCC, \
                     cv2.VideoWriter_fourcc(*fourcc))
-            self.capture.set(cv2.CAP_PROP_FPS, fps)
+            if fps is not None:
+                self.capture.set(cv2.CAP_PROP_FPS, fps)
         
          # Get the actual frame size
         self.width = self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -233,4 +235,93 @@ class IntervalCounter():
             return np.average(self.samples)
         else:
             return None
+
+
+class ContinuousVideoProcess():
+    '''Captured video processing applicaion framework
+    
+    Attributes:
+        capture(ContinuousVideoCapture): Video capture process
+        fpsCounter(IntervalCounter): FPS counter
+        qinfo(bool): If set, print processing queue status
+        title(str): Window title
+    '''
+    
+    def __init__(self, args):
+        '''
+        Args:
+            args(argparse.Namespace): video capture command-line arguments
+        '''
+        fourcc = None
+        if args.mjpg:
+            fourcc = 'MJPG'
+        if args.fps < 0:
+            fps = None
+        else:
+            fps = args.fps
+        self.capture = ContinuousVideoCapture( \
+            args.camera, args.width, args.height, fps, args.qsize, fourcc)
+        self.fpsCounter = IntervalCounter(10)
+        self.qinfo = args.qinfo
+        self.title = args.title
+
+    def start(self):
+        ''' Start video processing
+        '''
+        self.capture.start()
+        while True:
+            frame = self.capture.get()
+            frame = self.process(frame)
+            if self.qinfo:
+                print('%02d %06d' % (self.capture.qsize(), self.capture.numDrops))
+            interval = self.fpsCounter.measure()
+            if interval is not None:
+                fps = 1.0 / interval
+                fpsInfo = '{0}{1:.2f}   ESC to Quit'.format('FPS:', fps)
+                cv2.putText(frame, fpsInfo, (32, 32), \
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+            cv2.imshow(self.title, frame)  
+            # Check if ESC key is pressed to terminate this application
+            key = cv2.waitKey(1)
+            if key == 27: # ESC
+                break
+        self.capture.stop()
+
+    def process(self, frame):
+        ''' Process the frame image. Sub-classes should override this method.
+
+        Args:
+            frame: input image
+
+        Returns:
+            processed output image
+        '''
+        return frame
+
+    @staticmethod
+    def prepareArguments(parser, width=640, height=480):
+        parser.add_argument('--camera', '-c', \
+            type=int, default=0, metavar='CAMERA_NUM', \
+            help='Camera number, use any negative integer for MIPI-CSI camera')
+        parser.add_argument('--width', \
+            type=int, default=width, metavar='WIDTH', \
+            help='Capture width')
+        parser.add_argument('--height', \
+            type=int, default=height, metavar='HEIGHT', \
+            help='Capture height')
+        parser.add_argument('--fps', \
+            type=int, default=-1, metavar='FPS', \
+            help='Capture frame rate')
+        parser.add_argument('--qsize', \
+            type=int, default=1, metavar='QSIZE', \
+            help='Capture queue size')
+        parser.add_argument('--qinfo', \
+            action='store_true', \
+            help='If set, print queue status information')
+        parser.add_argument('--mjpg', \
+            action='store_true', \
+            help='If set, capture video in motion jpeg format')
+        parser.add_argument('--title', \
+            type=str, default=parser.prog, metavar='TITLE', \
+            help='Display window title')
 
