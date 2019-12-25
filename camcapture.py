@@ -36,7 +36,7 @@ def main():
     args = parser.parse_args()
     # Create continuous video process and start it
     vproc = ContinuousVideoProcess(args)
-    vproc.start()
+    vproc.execute()
 
 if __name__ == '__main__':
     main() 

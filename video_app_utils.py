@@ -49,6 +49,8 @@ class PipelineWorker():
     Attributes:
         queue: Queue to store outputs processed by this instance.
         source: Data source (assumped to be other PipelineWorker instance) 
+        destination: Data destination
+                     (assumped to be other PipelineWorker instance)  
         sem: Semaphore to lock this instance.
         flag: If ture, the processing loop is running.
         numDrops: Total number of dropped outputs.
@@ -64,12 +66,18 @@ class PipelineWorker():
         '''
         self.queue = queue.Queue(qsize)
         self.source = source
+        if self.source is not None:
+            self.source.destination = self
+        self.destination = None
         self.sem = threading.Semaphore(1)
         self.flag = False
         self.numDrops = 0
     
     def __del__(self):
         pass
+
+    def __repr__(self):
+        return '%02d %06d' % (self.qsize(), self.numDrops)
         
     def process(self, srcData):
         '''Data processing(producing) method called in thread loop.
@@ -245,6 +253,7 @@ class ContinuousVideoProcess():
         fpsCounter(IntervalCounter): FPS counter
         qinfo(bool): If set, print processing queue status
         title(str): Window title
+        pipeline(list): List of the pipeline worker objects
     '''
     
     def __init__(self, args):
@@ -264,16 +273,30 @@ class ContinuousVideoProcess():
         self.fpsCounter = IntervalCounter(10)
         self.qinfo = args.qinfo
         self.title = args.title
+        self.pipeline = None
 
-    def start(self):
-        ''' Start video processing
+    def scanPipeline(self):
+        pipeline = []
+        self.__class__.getSources(self.capture, pipeline)
+        self.pipeline = pipeline[::-1]
+
+    def startPipeline(self):
+        self.scanPipeline()
+        for worker in self.pipeline:
+            worker.start()
+
+    def stopPipeline(self):
+        for worker in self.pipeline:
+            worker.stop()
+
+    def execute(self):
+        ''' execute video processing loop
         '''
-        self.capture.start()
+        self.startPipeline()
         while True:
-            frame = self.capture.get()
-            frame = self.process(frame)
+            frame = self.getOutput()
             if self.qinfo:
-                print('%02d %06d' % (self.capture.qsize(), self.capture.numDrops))
+                print(self.pipeline)
             interval = self.fpsCounter.measure()
             if interval is not None:
                 fps = 1.0 / interval
@@ -285,18 +308,24 @@ class ContinuousVideoProcess():
             key = cv2.waitKey(1)
             if key == 27: # ESC
                 break
-        self.capture.stop()
+        self.stopPipeline()
 
-    def process(self, frame):
-        ''' Process the frame image. Sub-classes should override this method.
-
-        Args:
-            frame: input image
+    def getOutput(self):
+        ''' Get the output image to be displayed.
 
         Returns:
-            processed output image
+            Output image
         '''
+        frame = (self.pipeline[0]).get()
         return frame
+
+    @staticmethod
+    def getSources(worker, srcList):
+        if worker is None:
+            return
+        else:
+            srcList.append(worker)
+        ContinuousVideoProcess.getSources(worker.destination, srcList)
 
     @staticmethod
     def prepareArguments(parser, width=640, height=480):
