@@ -5,7 +5,7 @@ Video Capture Application Template
 ```
 python3 camcapture.py [-h] [--camera CAMERA_NUM] [--width WIDTH]
                      [--height HEIGHT] [--fps FPS] [--qsize QSIZE] [--qinfo]
-                     [--mjpg] [--title TITLE]
+                     [--mjpg] [--title TITLE] [--max MAX]
 
 Camera Capture Test
 
@@ -21,4 +21,5 @@ optional arguments:
   --qinfo               If set, print queue status information
   --mjpg                If set, capture video in motion jpeg format
   --title TITLE         Display window title
+  --max MAX             Maximum number of capturing frames
 ```

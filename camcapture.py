@@ -31,8 +31,9 @@ from video_app_utils import ContinuousVideoProcess
 
 def main():
     # Parse the command line parameters
-    parser = argparse.ArgumentParser(description='Camera Capture Test')
-    ContinuousVideoProcess.prepareArguments(parser)
+    cvpParser = ContinuousVideoProcess.argumentParser()
+    parser = argparse.ArgumentParser( \
+        parents=[cvpParser], description='Camera Capture Test')
     args = parser.parse_args()
     # Create continuous video process and start it
     vproc = ContinuousVideoProcess(args)
