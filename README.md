@@ -3,7 +3,7 @@ Video Capture Application Template
 
 ## Usage
 ```
-python3 camcapture.py [-h] [--camera CAMERA_NUM] [--width WIDTH]
+python3 camcapture.py [-h] [--csi] [--camera CAMERA_NUM] [--width WIDTH]
                      [--height HEIGHT] [--fps FPS] [--qsize QSIZE] [--qinfo]
                      [--mjpg] [--title TITLE] [--max MAX]
 
@@ -11,9 +11,9 @@ Camera Capture Test
 
 optional arguments:
   -h, --help            show this help message and exit
+  --csi                 Set to use a CSI camera
   --camera CAMERA_NUM, -c CAMERA_NUM
-                        Camera number, use any negative integer for MIPI-CSI
-                        camera
+                        Camera number
   --width WIDTH         Capture width
   --height HEIGHT       Capture height
   --fps FPS             Capture frame rate
