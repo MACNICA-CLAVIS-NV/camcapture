@@ -144,15 +144,17 @@ class ContinuousVideoCapture(PipelineWorker):
     '''Video capture workeer thread
     '''
 
-    GST_STR_CSI = 'nvarguscamerasrc \
+    GST_STR_CSI = 'nvarguscamerasrc sensor-id=%d \
     ! video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, format=(string)NV12, framerate=(fraction)%d/1 \
     ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx \
     ! videoconvert \
     ! appsink'
     
-    def __init__(self, cameraId, width, height, fps=None, qsize=30, fourcc=None):
+    def __init__(self, csi, cameraId, width, height, 
+            fps=None, qsize=30, fourcc=None):
         '''
             Args:
+                csi(bool): True for CSI, False for V4L2
                 cameraId(int): Camera device ID, if negative number specified,
                     the CSI camera will be selected.
                 width(int): Capture width
@@ -164,10 +166,10 @@ class ContinuousVideoCapture(PipelineWorker):
         
         super().__init__(qsize)
         
-        if cameraId < 0:
+        if csi:
             # CSI camera
             gstCmd = ContinuousVideoCapture.GST_STR_CSI \
-                % (width, height, fps, width, height)
+                % (cameraId, width, height, fps, width, height)
             self.capture = cv2.VideoCapture(gstCmd, cv2.CAP_GSTREAMER)
             if self.capture.isOpened() is False:
                 raise OSError('CSI camera could not be opened.')
@@ -262,15 +264,25 @@ class ContinuousVideoProcess():
         Args:
             args(argparse.Namespace): video capture command-line arguments
         '''
+        if args.camera < 0:
+            args.csi = True
+            args.camera = 0
+        if args.csi:
+            if args.fps < 0:
+                fps = 30
+            else:
+                fps = args.fps
+        else:
+            if args.fps < 0:
+                fps = None
+            else:
+                fps = args.fps
         fourcc = None
         if args.mjpg:
             fourcc = 'MJPG'
-        if args.fps < 0:
-            fps = None
-        else:
-            fps = args.fps
         self.capture = ContinuousVideoCapture( \
-            args.camera, args.width, args.height, fps, args.qsize, fourcc)
+            args.csi, args.camera, args.width, args.height, 
+            fps, args.qsize, fourcc)
         self.fpsCounter = IntervalCounter(10)
         self.qinfo = args.qinfo
         self.title = args.title
@@ -339,9 +351,12 @@ class ContinuousVideoProcess():
     @staticmethod
     def argumentParser(width=640, height=480):
         parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('--csi', \
+            action='store_true', \
+            help='Set to use a CSI camera')
         parser.add_argument('--camera', '-c', \
             type=int, default=0, metavar='CAMERA_NUM', \
-            help='Camera number, use any negative integer for MIPI-CSI camera')
+            help='Camera number')
         parser.add_argument('--width', \
             type=int, default=width, metavar='WIDTH', \
             help='Capture width')
